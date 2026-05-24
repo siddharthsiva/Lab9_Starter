@@ -2,6 +2,12 @@
 <html lang="en">
 
 <head>
+  <script src="https://cdn.trackjs.com/agent/v3/latest/t.js"></script>
+  <script>
+    window.TrackJS && TrackJS.install({
+      token: '67c588692cc8440c9bbda76df36cc837'
+    });
+  </script>
   <meta charset="UTF-8">
   <meta http-equiv="X-UA-Compatible" content="IE=edge">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
@@ -46,6 +52,16 @@
       padding: 8px 2px;
       width: 122px;
     }
+
+    .status-log {
+      border: 1px solid #b7c4d6;
+      border-radius: 6px;
+      font-family: Consolas, monospace;
+      margin-top: 20px;
+      min-height: 120px;
+      padding: 12px;
+      white-space: pre-wrap;
+    }
   </style>
 </head>
 
@@ -69,39 +85,240 @@
     </form>
 
     <section id="error-btns">
-      <button>Console Log</button>
-      <button>Console Error</button>
-      <button>Console Count</button>
-      <button>Console Warn</button>
-      <button>Console Assert</button>
-      <button>Console Clear</button>
-      <button>Console Dir</button>
-      <button>Console dirxml</button>
-      <button>Console Group Start</button>
-      <button>Console Group End</button>
-      <button>Console Table</button>
-      <button>Start Timer</button>
-      <button>End Timer</button>
-      <button>Console Trace</button>
-      <button>Trigger a Global Error</button>
+      <button type="button" data-action="log">Console Log</button>
+      <button type="button" data-action="error">Console Error</button>
+      <button type="button" data-action="count">Console Count</button>
+      <button type="button" data-action="warn">Console Warn</button>
+      <button type="button" data-action="assert">Console Assert</button>
+      <button type="button" data-action="clear">Console Clear</button>
+      <button type="button" data-action="dir">Console Dir</button>
+      <button type="button" data-action="dirxml">Console dirxml</button>
+      <button type="button" data-action="groupStart">Console Group Start</button>
+      <button type="button" data-action="groupEnd">Console Group End</button>
+      <button type="button" data-action="table">Console Table</button>
+      <button type="button" data-action="timeStart">Start Timer</button>
+      <button type="button" data-action="timeEnd">End Timer</button>
+      <button type="button" data-action="trace">Console Trace</button>
+      <button type="button" data-action="globalError">Trigger a Global Error</button>
+    </section>
+
+    <section>
+      <h2>Event Log</h2>
+      <pre class="status-log" id="status-log">Use the calculator or demo buttons to inspect console behavior and error handling.</pre>
     </section>
   </main>
 
   <script>
-    let form = document.querySelector('form');
-    form.addEventListener('submit', e => {
-      e.preventDefault();
-      let output = document.querySelector('output');
-      let firstNum = document.querySelector('#first-num').value;
-      let secondNum = document.querySelector('#second-num').value;
-      let operator = document.querySelector('#operator').value;
-      output.innerHTML = eval(`${firstNum} ${operator} ${secondNum}`);
+    const form = document.querySelector('form');
+    const output = document.querySelector('output');
+    const firstNumInput = document.querySelector('#first-num');
+    const secondNumInput = document.querySelector('#second-num');
+    const operatorSelect = document.querySelector('#operator');
+    const statusLog = document.querySelector('#status-log');
+    const errorBtns = Array.from(document.querySelectorAll('#error-btns > button'));
+    const timerLabel = 'calculation-demo-timer';
+
+    class CalculationError extends Error {
+      constructor(message) {
+        super(message);
+        this.name = 'CalculationError';
+      }
+    }
+
+    class MissingElementError extends Error {
+      constructor(selector) {
+        super(`Required page element is missing: ${selector}`);
+        this.name = 'MissingElementError';
+        this.selector = selector;
+      }
+    }
+
+    const appendStatus = message => {
+      const timestamp = new Date().toLocaleTimeString();
+      statusLog.textContent = `[${timestamp}] ${message}\n${statusLog.textContent}`;
+    };
+
+    const requireElement = (element, selector) => {
+      if (!element) {
+        throw new MissingElementError(selector);
+      }
+
+      return element;
+    };
+
+    const parseNumberInput = (value, label) => {
+      if (value.trim() === '') {
+        throw new CalculationError(`${label} is required.`);
+      }
+
+      const parsedValue = Number(value);
+
+      if (Number.isNaN(parsedValue)) {
+        throw new CalculationError(`${label} must be a valid number.`);
+      }
+
+      return parsedValue;
+    };
+
+    const calculateResult = (firstValue, secondValue, operator) => {
+      switch (operator) {
+        case '+':
+          return firstValue + secondValue;
+        case '-':
+          return firstValue - secondValue;
+        case '*':
+          return firstValue * secondValue;
+        case '/':
+          if (secondValue === 0) {
+            throw new CalculationError('Division by zero is not allowed.');
+          }
+          return firstValue / secondValue;
+        default:
+          throw new CalculationError(`Unsupported operator: ${operator}`);
+      }
+    };
+
+    const consoleActions = {
+      log() {
+        console.log('Console log demo', {
+          first: firstNumInput.value || '(empty)',
+          operator: operatorSelect.value,
+          second: secondNumInput.value || '(empty)'
+        });
+        appendStatus('Ran console.log with the current calculator inputs.');
+      },
+      error() {
+        console.error('Console error demo: invalid calculator state sample.', {
+          first: firstNumInput.value,
+          second: secondNumInput.value
+        });
+        appendStatus('Ran console.error with a sample payload.');
+      },
+      count() {
+        console.count('Console Count Demo');
+        appendStatus('Incremented console.count for "Console Count Demo".');
+      },
+      warn() {
+        console.warn('Console warn demo: double-check division inputs before submitting.');
+        appendStatus('Ran console.warn with calculator guidance.');
+      },
+      assert() {
+        const bothInputsPresent = firstNumInput.value.trim() !== '' && secondNumInput.value.trim() !== '';
+        console.assert(bothInputsPresent, 'Console assert demo: both calculator inputs should be filled in.');
+        appendStatus(`Ran console.assert. Assertion passed: ${bothInputsPresent}.`);
+      },
+      clear() {
+        console.clear();
+        appendStatus('Cleared the browser console with console.clear.');
+      },
+      dir() {
+        console.dir(requireElement(form, 'form'));
+        appendStatus('Inspected the calculator form with console.dir.');
+      },
+      dirxml() {
+        console.dirxml(requireElement(document.querySelector('main'), 'main'));
+        appendStatus('Inspected the page structure with console.dirxml.');
+      },
+      groupStart() {
+        console.group('Calculation Snapshot');
+        console.log('First value:', firstNumInput.value || '(empty)');
+        console.log('Operator:', operatorSelect.value);
+        console.log('Second value:', secondNumInput.value || '(empty)');
+        appendStatus('Opened a console.group and logged the current calculator state.');
+      },
+      groupEnd() {
+        console.groupEnd();
+        appendStatus('Closed the current console.group.');
+      },
+      table() {
+        console.table([
+          { field: 'First Number', value: firstNumInput.value || '(empty)' },
+          { field: 'Operator', value: operatorSelect.value },
+          { field: 'Second Number', value: secondNumInput.value || '(empty)' }
+        ]);
+        appendStatus('Rendered the calculator state using console.table.');
+      },
+      timeStart() {
+        console.time(timerLabel);
+        appendStatus('Started the demo timer with console.time.');
+      },
+      timeEnd() {
+        console.timeEnd(timerLabel);
+        appendStatus('Ended the demo timer with console.timeEnd.');
+      },
+      trace() {
+        const traceHelper = () => {
+          console.trace('Console trace demo from the calculator page.');
+        };
+
+        traceHelper();
+        appendStatus('Generated a stack trace with console.trace.');
+      },
+      globalError() {
+        appendStatus('Triggering an uncaught global error. Check the console for the handler output.');
+        window.setTimeout(() => {
+          throw new Error('Global demo error fired outside try/catch.');
+        }, 0);
+      }
+    };
+
+    window.onerror = (message, source, lineNumber, columnNumber, error) => {
+      console.log('Global error captured by window.onerror.', {
+        message,
+        source,
+        lineNumber,
+        columnNumber,
+        name: error?.name
+      });
+
+      appendStatus(`Global error handler captured: ${message}`);
+      return false;
+    };
+
+    form.addEventListener('submit', event => {
+      event.preventDefault();
+
+      try {
+        const safeOutput = requireElement(output, 'output');
+        const firstValue = parseNumberInput(firstNumInput.value, 'First number');
+        const secondValue = parseNumberInput(secondNumInput.value, 'Second number');
+        const result = calculateResult(firstValue, secondValue, operatorSelect.value);
+
+        safeOutput.textContent = String(result);
+        console.log('Calculation succeeded.', { firstValue, secondValue, operator: operatorSelect.value, result });
+        appendStatus(`Calculation succeeded: ${firstValue} ${operatorSelect.value} ${secondValue} = ${result}`);
+      } catch (error) {
+        output.textContent = error.message;
+
+        if (error instanceof CalculationError || error instanceof MissingElementError) {
+          console.error(`${error.name}: ${error.message}`);
+          appendStatus(`Handled ${error.name}: ${error.message}`);
+        } else {
+          console.error('Unexpected calculator failure.', error);
+          appendStatus('Unexpected calculator failure. Inspect console.error for details.');
+        }
+      } finally {
+        console.log('Calculator submit flow completed.');
+      }
     });
 
-    let errorBtns = Array.from(document.querySelectorAll('#error-btns > button'));
+    errorBtns.forEach(button => {
+      button.addEventListener('click', () => {
+        const action = button.dataset.action;
+        const handler = consoleActions[action];
 
-    // Start your code here
-    // You may move this JS to another file if you wish
+        if (!handler) {
+          console.warn(`No handler found for action: ${action}`);
+          return;
+        }
+
+        handler();
+      });
+    });
+
+    if (window.TrackJS) {
+      appendStatus('TrackJS installed. Trigger errors and confirm they appear in your dashboard.');
+    }
   </script>
 </body>
 
